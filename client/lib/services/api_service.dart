@@ -26,15 +26,34 @@ class ApiService {
     return _parseResponse(res);
   }
 
-  /// Generic GET list (returns List)
+  // /// Generic GET list (returns List)
+  // static Future<List<dynamic>> getList(String endpoint) async {
+  //   final res = await http.get(
+  //     Uri.parse('$apiBase/$endpoint'),
+  //     headers: {
+  //       'Authorization': 'Bearer $token',
+  //     },
+  //   );
+  //   return _parseListResponse(res);
+  // }
+
   static Future<List<dynamic>> getList(String endpoint) async {
     final res = await http.get(
       Uri.parse('$apiBase/$endpoint'),
-      headers: {
-        'Authorization': 'Bearer $token',
-      },
+      headers: {'Authorization': 'Bearer $token'},
     );
-    return _parseListResponse(res);
+
+    if (res.statusCode != 200) {
+      return [];
+    }
+
+    final decoded = jsonDecode(res.body);
+
+    if (decoded is Map<String, dynamic> && decoded['data'] is List) {
+      return decoded['data'];
+    }
+
+    return [];
   }
 
   /// Generic GET single object

@@ -16,8 +16,14 @@ class DataProvider extends ChangeNotifier {
   }
 
   Future<void> addPensionPot(Map<String, dynamic> pot) async {
-    await ApiService.post('pension_pots', pot);
-    await fetchPensionPots();
+    final res = await ApiService.post('pension_pots', pot);
+
+    // Optional: check success
+    if (res['success'] == true) {
+      await fetchPensionPots();
+    } else {
+      throw Exception(res['error'] ?? 'Failed to add pot');
+    }
   }
 
   Future<void> deletePensionPot(int id) async {

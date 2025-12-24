@@ -63,28 +63,17 @@ void main() async {
     ..post('/register', _register)
     ..post('/login', _login)
     ..post('/pension_pots',   protected.addHandler(_createPensionPot))
-    ..get('/pension_pots', _listPensionPots)
-    ..delete('/pension_pots/<id>', _deletePensionPot)
-    ..post('/drawdowns', _createDrawdown)
-    ..get('/drawdowns', _listDrawdowns)
-    ..delete('/drawdowns/<id>', _deleteDrawdown)
-    ..post('/state_pension', _setStatePension)
-    ..get('/state_pension', _getStatePension)
-    ..post('/simulate', _simulate)
-    ..post('/admin/reset_password', _adminResetPassword)
-    ..post('/admin/lock_user', _adminLockUser)
-    ..get('/admin/users', (Request request) {
-      final rows = db.select("SELECT id, username, is_admin, locked FROM users");
-      final data = rows.map((r) => {
-            'id': r['id'],
-            'username': r['username'],
-            'is_admin': r['is_admin'],
-            'locked': r['locked'],
-          }).toList();
-      return Response.ok(jsonEncode(data),
-          headers: {'Content-Type': 'application/json'});
-    });
-
+    ..get('/pension_pots', protected.addHandler(_listPensionPots))
+//    ..delete('/pension_pots/<id>', protected.addHandler(_deletePensionPot))
+    ..post('/drawdowns', protected.addHandler(_createDrawdown))
+    ..get('/drawdowns', protected.addHandler(_listDrawdowns))
+//    ..delete('/drawdowns/<id>', protected.addHandler(_deleteDrawdown))
+    ..post('/state_pension', protected.addHandler(_setStatePension))
+    ..get('/state_pension', protected.addHandler(_getStatePension))
+    ..post('/simulate', protected.addHandler(_simulate))
+    ..post('/admin/reset_password', protected.addHandler(_adminResetPassword))
+    ..post('/admin/lock_user', protected.addHandler(_adminLockUser))
+    ..get('/admin/users', protected.addHandler(_adminUsers));
 
   final server = await serve(public, InternetAddress.anyIPv4, 8080);
   print('Server running on IP ${server.address.address}:${server.port}');
@@ -233,9 +222,41 @@ Future<Response> _register(Request req) async {
   }
 }
 
-Future<Response> _login(Request req) async {
-  print('_login:${req.headers}');
+// Future<Response> _login(Request req) async {
+//   print('_login:${req.headers}');
 
+//   final body = jsonDecode(await req.readAsString());
+//   final result = db.select(
+//     "SELECT * FROM users WHERE username=?",
+//     [body['username']],
+//   );
+
+//   if (result.isEmpty) {
+//     return Response.forbidden('Invalid credentials');
+//   }
+
+//   final user = result.first;
+
+//   if (user['locked'] == 1) {
+//     return Response.forbidden('User locked');
+//   }
+
+//   if (!BCrypt.checkpw(body['password'], user['password'])) {
+//     return Response.forbidden('Invalid credentials');
+//   }
+
+//   final jwt = JWT({
+//     'id': user['id'],
+//     'admin': user['is_admin'] == 1,
+//   });
+
+//   return Response.ok(
+//     jsonEncode({'token': jwt.sign(SecretKey(jwtSecret))}),
+//     headers: {'content-type': 'application/json'},
+//   );
+// }
+
+Future<Response> _login(Request req) async {
   final body = jsonDecode(await req.readAsString());
   final result = db.select(
     "SELECT * FROM users WHERE username=?",
@@ -243,17 +264,23 @@ Future<Response> _login(Request req) async {
   );
 
   if (result.isEmpty) {
-    return Response.forbidden('Invalid credentials');
+    return Response(403,
+        body: jsonEncode({'success': false, 'error': 'Invalid credentials'}),
+        headers: {'Content-Type': 'application/json'});
   }
 
   final user = result.first;
 
   if (user['locked'] == 1) {
-    return Response.forbidden('User locked');
+    return Response(403,
+        body: jsonEncode({'success': false, 'error': 'User locked'}),
+        headers: {'Content-Type': 'application/json'});
   }
 
   if (!BCrypt.checkpw(body['password'], user['password'])) {
-    return Response.forbidden('Invalid credentials');
+    return Response(403,
+        body: jsonEncode({'success': false, 'error': 'Invalid credentials'}),
+        headers: {'Content-Type': 'application/json'});
   }
 
   final jwt = JWT({
@@ -262,8 +289,8 @@ Future<Response> _login(Request req) async {
   });
 
   return Response.ok(
-    jsonEncode({'token': jwt.sign(SecretKey(jwtSecret))}),
-    headers: {'content-type': 'application/json'},
+    jsonEncode({'success': true, 'token': jwt.sign(SecretKey(jwtSecret))}),
+    headers: {'Content-Type': 'application/json'},
   );
 }
 
@@ -316,6 +343,27 @@ Future<Response> _adminResetPassword(Request req) async {
     jsonEncode({'success': true, 'message': 'Password reset'}),
     headers: {'Content-Type': 'application/json'},
   );
+}
+
+Future<Response> _adminUsers(Request req) async {
+  if (req.context['admin'] != true) {
+    return Response(403,
+        body: jsonEncode({'success': false, 'error': 'Admin only'}),
+        headers: {'Content-Type': 'application/json'});
+  }
+
+  final rows = db.select(
+      "SELECT id, username, is_admin, locked FROM users");
+  final users = rows.map((r) => {
+        'id': r['id'],
+        'username': r['username'],
+        'is_admin': r['is_admin'],
+        'locked': r['locked'],
+      }).toList();
+
+  return Response.ok(
+      jsonEncode({'success': true, 'data': users}),
+      headers: {'Content-Type': 'application/json'});
 }
 
 
@@ -395,11 +443,10 @@ Future<Response> _createPensionPot(Request req) async {
       );
     }
 
-    final amount = body['amount'];
-    final date = body['date'];
-    final interestRate = body['interest_rate'];
-
-    if (amount == null || date == null || interestRate == null) {
+    // Validate required fields
+    if (body['amount'] == null ||
+        body['date'] == null ||
+        body['interest_rate'] == null) {
       return Response(
         400,
         body: jsonEncode({'success': false, 'error': 'Missing fields'}),
@@ -409,11 +456,11 @@ Future<Response> _createPensionPot(Request req) async {
 
     db.execute(
       "INSERT INTO pension_pots (user_id, amount, date, interest_rate) VALUES (?, ?, ?, ?)",
-      [userId, amount, date, interestRate],
+      [userId, body['amount'], body['date'], body['interest_rate']],
     );
 
     return Response.ok(
-      jsonEncode({'success': true, 'message': 'Pension pot added'}),
+      jsonEncode({'success': true, 'message': 'Pension pot created'}),
       headers: {'Content-Type': 'application/json'},
     );
   } catch (e) {
@@ -424,47 +471,127 @@ Future<Response> _createPensionPot(Request req) async {
   }
 }
 
+
+// Future<Response> _listPensionPots(Request req) async {
+//   final rows = db.select(
+//     "SELECT * FROM pension_pots WHERE user_id=?",
+//     [req.context['uid']],
+//   );
+
+//   final data =
+//       rows.map((r) => Map<String, Object?>.from(r)).toList();
+
+//   return Response.ok(
+//     jsonEncode(data),
+//     headers: {'content-type': 'application/json'},
+//   );
+// }
+
 Future<Response> _listPensionPots(Request req) async {
   final rows = db.select(
     "SELECT * FROM pension_pots WHERE user_id=?",
     [req.context['uid']],
   );
 
-  final data =
-      rows.map((r) => Map<String, Object?>.from(r)).toList();
+  final data = rows.map((r) => {
+    'id': r['id'],
+    'user_id': r['user_id'],
+    'amount': r['amount'],
+    'date': r['date'],
+    'interest_rate': r['interest_rate'],
+  }).toList();
 
   return Response.ok(
-    jsonEncode(data),
-    headers: {'content-type': 'application/json'},
+    jsonEncode({'success': true, 'data': data}),
+    headers: {'Content-Type': 'application/json'},
   );
 }
 
+// Future<Response> _deletePensionPot(Request req, String id) async {
+//   db.execute(
+//     "DELETE FROM pension_pots WHERE id=? AND user_id=?",
+//     [id, req.context['uid']],
+//   );
+//   return Response.ok('Deleted');
+// }
+
 Future<Response> _deletePensionPot(Request req, String id) async {
-  db.execute(
-    "DELETE FROM pension_pots WHERE id=? AND user_id=?",
-    [id, req.context['uid']],
-  );
-  return Response.ok('Deleted');
+  try {
+    db.execute(
+      "DELETE FROM pension_pots WHERE id=? AND user_id=?",
+      [id, req.context['uid']],
+    );
+
+    return Response.ok(
+      jsonEncode({'success': true, 'message': 'Pension pot deleted'}),
+      headers: {'Content-Type': 'application/json'},
+    );
+  } catch (e) {
+    return Response.internalServerError(
+      body: jsonEncode({'success': false, 'error': e.toString()}),
+      headers: {'Content-Type': 'application/json'},
+    );
+  }
 }
 
 /* ───────────────────── DRAWDOWNS ───────────────────── */
 
+// Future<Response> _createDrawdown(Request req) async {
+//   final body = jsonDecode(await req.readAsString());
+
+//   db.execute(
+//     "INSERT INTO drawdowns (user_id, amount, start_date, end_date, interest_rate) VALUES (?, ?, ?, ?, ?)",
+//     [
+//       req.context['uid'],
+//       body['amount'],
+//       body['start_date'],
+//       body['end_date'],
+//       body['interest_rate']
+//     ],
+//   );
+
+//   return Response.ok('Added');
+// }
 Future<Response> _createDrawdown(Request req) async {
-  final body = jsonDecode(await req.readAsString());
+  try {
+    final body = jsonDecode(await req.readAsString());
+    final userId = req.context['uid'];
+    db.execute(
+      "INSERT INTO drawdowns (user_id, amount, start_date, end_date, interest_rate) VALUES (?, ?, ?, ?, ?)",
+      [
+        userId,
+        body['amount'],
+        body['start_date'],
+        body['end_date'],
+        body['interest_rate']
+      ],
+    );
 
-  db.execute(
-    "INSERT INTO drawdowns (user_id, amount, start_date, end_date, interest_rate) VALUES (?, ?, ?, ?, ?)",
-    [
-      req.context['uid'],
-      body['amount'],
-      body['start_date'],
-      body['end_date'],
-      body['interest_rate']
-    ],
-  );
-
-  return Response.ok('Added');
+    return Response.ok(
+      jsonEncode({'success': true, 'message': 'Drawdown created'}),
+      headers: {'Content-Type': 'application/json'},
+    );
+  } catch (e) {
+    return Response.internalServerError(
+      body: jsonEncode({'success': false, 'error': e.toString()}),
+      headers: {'Content-Type': 'application/json'},
+    );
+  }
 }
+
+
+// Future<Response> _listDrawdowns(Request req) async {
+//   final rows = db.select(
+//     "SELECT * FROM drawdowns WHERE user_id=?",
+//     [req.context['uid']],
+//   );
+
+//   return Response.ok(
+//     jsonEncode(
+//         rows.map((r) => Map<String, Object?>.from(r)).toList()),
+//     headers: {'content-type': 'application/json'},
+//   );
+// }
 
 Future<Response> _listDrawdowns(Request req) async {
   final rows = db.select(
@@ -472,65 +599,179 @@ Future<Response> _listDrawdowns(Request req) async {
     [req.context['uid']],
   );
 
+  final data = rows.map((r) => {
+    'id': r['id'],
+    'user_id': r['user_id'],
+    'amount': r['amount'],
+    'start_date': r['start_date'],
+    'end_date': r['end_date'],
+    'interest_rate': r['interest_rate'],
+  }).toList();
+
   return Response.ok(
-    jsonEncode(
-        rows.map((r) => Map<String, Object?>.from(r)).toList()),
-    headers: {'content-type': 'application/json'},
+    jsonEncode({'success': true, 'data': data}),
+    headers: {'Content-Type': 'application/json'},
   );
 }
 
+// Future<Response> _deleteDrawdown(Request req, String id) async {
+//   db.execute(
+//     "DELETE FROM drawdowns WHERE id=? AND user_id=?",
+//     [id, req.context['uid']],
+//   );
+//   return Response.ok('Deleted');
+// }
+
 Future<Response> _deleteDrawdown(Request req, String id) async {
-  db.execute(
-    "DELETE FROM drawdowns WHERE id=? AND user_id=?",
-    [id, req.context['uid']],
-  );
-  return Response.ok('Deleted');
+  try {
+    db.execute(
+      "DELETE FROM drawdowns WHERE id=? AND user_id=?",
+      [id, req.context['uid']],
+    );
+
+    return Response.ok(
+      jsonEncode({'success': true, 'message': 'Drawdown deleted'}),
+      headers: {'Content-Type': 'application/json'},
+    );
+  } catch (e) {
+    return Response.internalServerError(
+      body: jsonEncode({'success': false, 'error': e.toString()}),
+      headers: {'Content-Type': 'application/json'},
+    );
+  }
 }
 
 /* ───────────────────── STATE PENSION ───────────────────── */
 
+// Future<Response> _setStatePension(Request req) async {
+//   final body = jsonDecode(await req.readAsString());
+
+//   db.execute(
+//     "DELETE FROM state_pensions WHERE user_id=?",
+//     [req.context['uid']],
+//   );
+
+//   db.execute(
+//     "INSERT INTO state_pensions (user_id, start_age, amount, interest_rate) VALUES (?, ?, ?, ?)",
+//     [
+//       req.context['uid'],
+//       body['start_age'],
+//       body['amount'],
+//       body['interest_rate']
+//     ],
+//   );
+
+//   return Response.ok('Saved');
+// }
+
 Future<Response> _setStatePension(Request req) async {
-  final body = jsonDecode(await req.readAsString());
+  try {
+    final body = jsonDecode(await req.readAsString());
+    final userId = req.context['uid'];
 
-  db.execute(
-    "DELETE FROM state_pensions WHERE user_id=?",
-    [req.context['uid']],
-  );
+    db.execute("DELETE FROM state_pensions WHERE user_id=?", [userId]);
+    db.execute(
+      "INSERT INTO state_pensions (user_id, start_age, amount, interest_rate) VALUES (?, ?, ?, ?)",
+      [userId, body['start_age'], body['amount'], body['interest_rate']],
+    );
 
-  db.execute(
-    "INSERT INTO state_pensions (user_id, start_age, amount, interest_rate) VALUES (?, ?, ?, ?)",
-    [
-      req.context['uid'],
-      body['start_age'],
-      body['amount'],
-      body['interest_rate']
-    ],
-  );
-
-  return Response.ok('Saved');
+    return Response.ok(
+      jsonEncode({'success': true, 'message': 'State pension saved'}),
+      headers: {'Content-Type': 'application/json'},
+    );
+  } catch (e) {
+    return Response.internalServerError(
+      body: jsonEncode({'success': false, 'error': e.toString()}),
+      headers: {'Content-Type': 'application/json'},
+    );
+  }
 }
 
+// Future<Response> _getStatePension(Request req) async {
+//   final rows = db.select(
+//     "SELECT * FROM state_pensions WHERE user_id=?",
+//     [req.context['uid']],
+//   );
+
+//   return Response.ok(
+//     jsonEncode(
+//       rows.isEmpty ? {} : Map<String, Object?>.from(rows.first),
+//     ),
+//     headers: {'content-type': 'application/json'},
+//   );
+// }
 Future<Response> _getStatePension(Request req) async {
   final rows = db.select(
     "SELECT * FROM state_pensions WHERE user_id=?",
     [req.context['uid']],
   );
 
+  if (rows.isEmpty) {
+    return Response.ok(
+      jsonEncode({'success': true, 'data': null}),
+      headers: {'Content-Type': 'application/json'},
+    );
+  }
+
+  final r = rows.first;
+  final data = {
+    'id': r['id'],
+    'user_id': r['user_id'],
+    'start_age': r['start_age'],
+    'amount': r['amount'],
+    'interest_rate': r['interest_rate'],
+  };
+
   return Response.ok(
-    jsonEncode(
-      rows.isEmpty ? {} : Map<String, Object?>.from(rows.first),
-    ),
-    headers: {'content-type': 'application/json'},
+    jsonEncode({'success': true, 'data': data}),
+    headers: {'Content-Type': 'application/json'},
   );
 }
 
 /* ───────────────────── SIMULATION ───────────────────── */
 
+// Future<Response> _simulate(Request req) async {
+//   final uid = req.context['uid'];
+
+//   final pots =
+//       db.select("SELECT * FROM pension_pots WHERE user_id=?", [uid]);
+//   final drawdowns =
+//       db.select("SELECT * FROM drawdowns WHERE user_id=?", [uid]);
+
+//   final rand = Random();
+//   final results = List<double>.filled(40, 0);
+
+//   for (var sim = 0; sim < 500; sim++) {
+//     double balance = pots.fold<double>(
+//       0,
+//       (sum, p) => sum + (p['amount'] as num).toDouble(),
+//     );
+
+//     for (var year = 0; year < 40; year++) {
+//       balance *= 1 + (0.03 + rand.nextDouble() * 0.04);
+
+//       for (final d in drawdowns) {
+//         balance -= (d['amount'] as num).toDouble();
+//       }
+
+//       results[year] += balance;
+//     }
+//   }
+
+//   for (var i = 0; i < results.length; i++) {
+//     results[i] /= 500;
+//   }
+
+//   return Response.ok(
+//     jsonEncode(results),
+//     headers: {'content-type': 'application/json'},
+//   );
+// }
+
 Future<Response> _simulate(Request req) async {
   final uid = req.context['uid'];
-
-  final pots =
-      db.select("SELECT * FROM pension_pots WHERE user_id=?", [uid]);
+  final pots = db.select(
+    "SELECT * FROM pension_pots WHERE user_id=?", [uid]);
   final drawdowns =
       db.select("SELECT * FROM drawdowns WHERE user_id=?", [uid]);
 
@@ -559,7 +800,7 @@ Future<Response> _simulate(Request req) async {
   }
 
   return Response.ok(
-    jsonEncode(results),
-    headers: {'content-type': 'application/json'},
+    jsonEncode({'success': true, 'data': results}),
+    headers: {'Content-Type': 'application/json'},
   );
 }
