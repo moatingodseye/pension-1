@@ -177,19 +177,59 @@ Middleware authMiddleware() {
 
 /* ───────────────────── AUTH ROUTES ───────────────────── */
 
+// Future<Response> _register(Request req) async {
+//   final body = jsonDecode(await req.readAsString());
+//   final hash = BCrypt.hashpw(body['password'], BCrypt.gensalt());
+
+//   try {
+//     db.execute(
+//       "INSERT INTO users (username, password, dob, is_admin) VALUES (?, ?, ?, 0)",
+//       [body['username'], hash, body['dob']],
+//     );
+//     return Response.ok('Registered');
+//   } catch (_) {
+//     return Response.internalServerError(
+//         body: 'Username already exists');
+//   }
+// }
+
 Future<Response> _register(Request req) async {
   final body = jsonDecode(await req.readAsString());
-  final hash = BCrypt.hashpw(body['password'], BCrypt.gensalt());
+
+  final username = body['username'];
+  final password = body['password'];
+  final dob = body['dob'];
+
+  if (username == null || password == null || dob == null) {
+    return Response(
+      400,
+      body: jsonEncode({'success': false, 'error': 'Missing fields'}),
+      headers: {'Content-Type': 'application/json'},
+    );
+  }
+
+  final hash = BCrypt.hashpw(password, BCrypt.gensalt());
 
   try {
     db.execute(
       "INSERT INTO users (username, password, dob, is_admin) VALUES (?, ?, ?, 0)",
-      [body['username'], hash, body['dob']],
+      [username, hash, dob],
     );
-    return Response.ok('Registered');
-  } catch (_) {
-    return Response.internalServerError(
-        body: 'Username already exists');
+
+    return Response.ok(
+      jsonEncode({
+        'success': true,
+        'message': 'Registered',
+        'username': username,
+      }),
+      headers: {'Content-Type': 'application/json'},
+    );
+  } catch (e) {
+    return Response(
+      409,
+      body: jsonEncode({'success': false, 'error': 'Username already exists'}),
+      headers: {'Content-Type': 'application/json'},
+    );
   }
 }
 
@@ -229,53 +269,159 @@ Future<Response> _login(Request req) async {
 
 /* ───────────────────── ADMIN ROUTES ───────────────────── */
 
+// Future<Response> _adminResetPassword(Request req) async {
+//   if (req.context['admin'] != true) {
+//     return Response.forbidden('Admin only');
+//   }
+
+//   final body = jsonDecode(await req.readAsString());
+//   final hash =
+//       BCrypt.hashpw(body['new_password'], BCrypt.gensalt());
+
+//   db.execute(
+//     "UPDATE users SET password=? WHERE id=?",
+//     [hash, body['user_id']],
+//   );
+
+//   return Response.ok('Password reset');
+// }
 Future<Response> _adminResetPassword(Request req) async {
   if (req.context['admin'] != true) {
-    return Response.forbidden('Admin only');
+    return Response(
+      403,
+      body: jsonEncode({'success': false, 'error': 'Admin only'}),
+      headers: {'Content-Type': 'application/json'},
+    );
   }
 
   final body = jsonDecode(await req.readAsString());
-  final hash =
-      BCrypt.hashpw(body['new_password'], BCrypt.gensalt());
+  final userId = body['user_id'];
+  final newPassword = body['new_password'];
 
+  if (userId == null || newPassword == null) {
+    return Response(
+      400,
+      body: jsonEncode({'success': false, 'error': 'user_id and new_password required'}),
+      headers: {'Content-Type': 'application/json'},
+    );
+  }
+
+  final hash = BCrypt.hashpw(newPassword, BCrypt.gensalt());
   db.execute(
     "UPDATE users SET password=? WHERE id=?",
-    [hash, body['user_id']],
+    [hash, userId],
   );
 
-  return Response.ok('Password reset');
+  return Response.ok(
+    jsonEncode({'success': true, 'message': 'Password reset'}),
+    headers: {'Content-Type': 'application/json'},
+  );
 }
 
+
+// Future<Response> _adminLockUser(Request req) async {
+//   if (req.context['admin'] != true) {
+//     return Response.forbidden('Admin only');
+//   }
+
+//   final body = jsonDecode(await req.readAsString());
+//   db.execute(
+//     "UPDATE users SET locked=1 WHERE id=?",
+//     [body['user_id']],
+//   );
+
+//   return Response.ok('User locked');
+// }
 Future<Response> _adminLockUser(Request req) async {
   if (req.context['admin'] != true) {
-    return Response.forbidden('Admin only');
+    return Response(
+      403,
+      body: jsonEncode({'success': false, 'error': 'Admin only'}),
+      headers: {'Content-Type': 'application/json'},
+    );
   }
 
   final body = jsonDecode(await req.readAsString());
+  final userId = body['user_id'];
+  
+  if (userId == null) {
+    return Response(
+      400,
+      body: jsonEncode({'success': false, 'error': 'Missing user_id'}),
+      headers: {'Content-Type': 'application/json'},
+    );
+  }
+
   db.execute(
     "UPDATE users SET locked=1 WHERE id=?",
-    [body['user_id']],
+    [userId],
   );
 
-  return Response.ok('User locked');
+  return Response.ok(
+    jsonEncode({'success': true, 'message': 'User locked'}),
+    headers: {'Content-Type': 'application/json'},
+  );
 }
+
 
 /* ───────────────────── PENSION POTS ───────────────────── */
 
+// Future<Response> _createPensionPot(Request req) async {
+//   final body = jsonDecode(await req.readAsString());
+
+//   db.execute(
+//     "INSERT INTO pension_pots (user_id, amount, date, interest_rate) VALUES (?, ?, ?, ?)",
+//     [
+//       req.context['uid'],
+//       body['amount'],
+//       body['date'],
+//       body['interest_rate']
+//     ],
+//   );
+
+//   return Response.ok('Added');
+// }
+
 Future<Response> _createPensionPot(Request req) async {
-  final body = jsonDecode(await req.readAsString());
+  try {
+    final body = jsonDecode(await req.readAsString());
 
-  db.execute(
-    "INSERT INTO pension_pots (user_id, amount, date, interest_rate) VALUES (?, ?, ?, ?)",
-    [
-      req.context['uid'],
-      body['amount'],
-      body['date'],
-      body['interest_rate']
-    ],
-  );
+    final userId = req.context['uid'];
+    if (userId == null) {
+      return Response(
+        401,
+        body: jsonEncode({'success': false, 'error': 'Unauthorized'}),
+        headers: {'Content-Type': 'application/json'},
+      );
+    }
 
-  return Response.ok('Added');
+    final amount = body['amount'];
+    final date = body['date'];
+    final interestRate = body['interest_rate'];
+
+    if (amount == null || date == null || interestRate == null) {
+      return Response(
+        400,
+        body: jsonEncode({'success': false, 'error': 'Missing fields'}),
+        headers: {'Content-Type': 'application/json'},
+      );
+    }
+
+    db.execute(
+      "INSERT INTO pension_pots (user_id, amount, date, interest_rate) VALUES (?, ?, ?, ?)",
+      [userId, amount, date, interestRate],
+    );
+
+    return Response.ok(
+      jsonEncode({'success': true, 'message': 'Pension pot added'}),
+      headers: {'Content-Type': 'application/json'},
+    );
+  } catch (e) {
+    return Response.internalServerError(
+      body: jsonEncode({'success': false, 'error': e.toString()}),
+      headers: {'Content-Type': 'application/json'},
+    );
+  }
 }
 
 Future<Response> _listPensionPots(Request req) async {

@@ -24,7 +24,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             TextField(
               controller: userController,
@@ -39,20 +38,28 @@ class _RegisterScreenState extends State<RegisterScreen> {
             const SizedBox(height: 10),
             TextField(
               controller: dobController,
-              decoration: const InputDecoration(labelText: 'DOB (YYYY-MM-DD)'),
+              decoration:
+                  const InputDecoration(labelText: 'Date of Birth (YYYY-MM-DD)'),
             ),
             const SizedBox(height: 20),
+
             if (_errorMessage != null)
-              Text(_errorMessage!,
-                  style: const TextStyle(color: Colors.red)),
+              Text(
+                _errorMessage!,
+                style: const TextStyle(color: Colors.red),
+              ),
+
             if (_successMessage != null)
-              Text(_successMessage!,
-                  style: const TextStyle(color: Colors.green)),
-            const SizedBox(height: 10),
+              Text(
+                _successMessage!,
+                style: const TextStyle(color: Colors.green),
+              ),
+
+            const SizedBox(height: 20),
             ElevatedButton(
               onPressed: _isLoading ? null : _register,
               child: _isLoading
-                  ? const CircularProgressIndicator()
+                  ? const CircularProgressIndicator(color: Colors.white)
                   : const Text('Register'),
             ),
           ],
@@ -67,14 +74,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final dob = dobController.text.trim();
 
     if (username.isEmpty || password.isEmpty || dob.isEmpty) {
-      setState(() => _errorMessage = 'Please fill in all fields.');
+      setState(() => _errorMessage = 'Please fill all fields');
       return;
     }
 
     setState(() {
+      _isLoading = true;
       _errorMessage = null;
       _successMessage = null;
-      _isLoading = true;
     });
 
     try {
@@ -84,14 +91,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
         'dob': dob,
       });
 
-      // Your API returns a success string or message.
-      // If you want stricter check, adapt based on API response shape.
-      setState(() {
-        _successMessage = 'Registered successfully!';
-        _errorMessage = null;
-      });
+      // res must be parsed JSON because the backend now returns JSON
+      if (res != null && res['success'] == true) {
+        setState(() => _successMessage = 'Registered successfully');
+      } else {
+        setState(() => _errorMessage = res['error'] ?? 'Registration failed');
+      }
     } catch (e) {
-      setState(() => _errorMessage = 'Registration failed: $e');
+      setState(() => _errorMessage = 'Error: $e');
     } finally {
       setState(() => _isLoading = false);
     }
