@@ -58,9 +58,8 @@ class _PensionPotsScreenState extends State<PensionPotsScreen> {
                       'Date: ${pot['date']}  |  Rate: ${pot['interest_rate']}'),
                   trailing: IconButton(
                     icon: const Icon(Icons.delete),
-                    onPressed: () {
-                      provider.deletePensionPot(pot['id'] as int);
-                    },
+                    onPressed: () =>
+                        provider.deletePensionPot(pot['id'] as int),
                   ),
                 );
               },
@@ -73,7 +72,8 @@ class _PensionPotsScreenState extends State<PensionPotsScreen> {
               children: [
                 TextFormField(
                   controller: amountController,
-                  decoration: const InputDecoration(labelText: 'Amount (£)'),
+                  decoration:
+                      const InputDecoration(labelText: 'Amount (£)'),
                   keyboardType: TextInputType.number,
                   validator: (val) =>
                       val == null || val.isEmpty ? 'Enter amount' : null,
@@ -93,30 +93,27 @@ class _PensionPotsScreenState extends State<PensionPotsScreen> {
                 const SizedBox(height: 8),
                 TextFormField(
                   controller: interestController,
-                  decoration:
-                      const InputDecoration(labelText: 'Interest Rate (%)'),
+                  decoration: const InputDecoration(
+                      labelText: 'Interest Rate (%)'),
                   keyboardType: TextInputType.number,
                   validator: (val) =>
-                      val == null || val.isEmpty ? 'Enter interest rate' : null,
+                      val == null || val.isEmpty ? 'Enter rate' : null,
                 ),
                 const SizedBox(height: 12),
                 ElevatedButton(
-                  onPressed: () async {
+                  onPressed: () {
                     if (!_formKey.currentState!.validate()) return;
-
-                    final amount = double.tryParse(amountController.text);
+                    final amount =
+                        double.tryParse(amountController.text);
                     final rate = double.tryParse(interestController.text);
-
                     if (amount == null || rate == null || selectedDate == null) {
                       return;
                     }
-
-                    await provider.addPensionPot({
+                    provider.addPensionPot({
                       'amount': amount,
                       'date': selectedDate!.toIso8601String(),
                       'interest_rate': rate / 100,
                     });
-
                     amountController.clear();
                     dateController.clear();
                     interestController.clear();

@@ -8,7 +8,7 @@ class DataProvider extends ChangeNotifier {
   List<double> simulationResults = [];
   List<dynamic> users = [];
 
-  // ───────────────────────── Pension Pots ─────────────────────────
+  // ───────── Pension Pots ─────────
 
   Future<void> fetchPensionPots() async {
     pensionPots = await ApiService.getList('pension_pots');
@@ -17,21 +17,19 @@ class DataProvider extends ChangeNotifier {
 
   Future<void> addPensionPot(Map<String, dynamic> pot) async {
     final res = await ApiService.post('pension_pots', pot);
-
-    // Optional: check success
     if (res['success'] == true) {
       await fetchPensionPots();
-    } else {
-      throw Exception(res['error'] ?? 'Failed to add pot');
     }
   }
 
   Future<void> deletePensionPot(int id) async {
-    await ApiService.delete('pension_pots/$id');
-    await fetchPensionPots();
+    final res = await ApiService.delete('pension_pots/$id');
+    if (res['success'] == true) {
+      await fetchPensionPots();
+    }
   }
 
-  // ───────────────────────── Drawdowns ─────────────────────────
+  // ───────── Drawdowns ─────────
 
   Future<void> fetchDrawdowns() async {
     drawdowns = await ApiService.getList('drawdowns');
@@ -39,41 +37,49 @@ class DataProvider extends ChangeNotifier {
   }
 
   Future<void> addDrawdown(Map<String, dynamic> drawdown) async {
-    await ApiService.post('drawdowns', drawdown);
-    await fetchDrawdowns();
+    final res = await ApiService.post('drawdowns', drawdown);
+    if (res['success'] == true) {
+      await fetchDrawdowns();
+    }
   }
 
   Future<void> deleteDrawdown(int id) async {
-    await ApiService.delete('drawdowns/$id');
-    await fetchDrawdowns();
+    final res = await ApiService.delete('drawdowns/$id');
+    if (res['success'] == true) {
+      await fetchDrawdowns();
+    }
   }
 
-  // ───────────────────────── State Pension ─────────────────────────
+  // ───────── State Pension ─────────
 
   Future<void> fetchStatePension() async {
-    try {
-      final obj = await ApiService.getOne('state_pension');
-      statePension = obj;
-    } catch (_) {
+    final res = await ApiService.getOne('state_pension');
+    if (res['success'] == true && res['data'] != null) {
+      statePension = res['data'];
+    } else {
       statePension = {};
     }
     notifyListeners();
   }
 
   Future<void> setStatePension(Map<String, dynamic> sp) async {
-    await ApiService.post('state_pension', sp);
-    await fetchStatePension();
+    final res = await ApiService.post('state_pension', sp);
+    if (res['success'] == true) {
+      await fetchStatePension();
+    }
   }
 
-  // ───────────────────────── Simulation ─────────────────────────
+  // ───────── Simulation ─────────
 
   Future<void> simulate() async {
     final res = await ApiService.post('simulate', {});
-    simulationResults = List<double>.from(res);
-    notifyListeners();
+    if (res['success'] == true && res['data'] is List) {
+      simulationResults = List<double>.from(res['data']);
+      notifyListeners();
+    }
   }
 
-  // ───────────────────────── Admin Users ─────────────────────────
+  // ───────── Admin Users ─────────
 
   Future<void> fetchUsers() async {
     users = await ApiService.getList('admin/users');
@@ -81,15 +87,28 @@ class DataProvider extends ChangeNotifier {
   }
 
   Future<void> lockUser(int userId) async {
-    await ApiService.post('admin/lock_user', {'user_id': userId});
-    await fetchUsers();
+    final res =
+        await ApiService.post('admin/lock_user', {'user_id': userId});
+    if (res['success'] == true) {
+      await fetchUsers();
+    }
+  }
+
+  Future<void> unlockUser(int userId) async {
+    final res =
+        await ApiService.post('admin/unlock_user', {'user_id': userId});
+    if (res['success'] == true) {
+      await fetchUsers();
+    }
   }
 
   Future<void> resetUserPassword(int userId, String newPassword) async {
-    await ApiService.post('admin/reset_password', {
+    final res = await ApiService.post('admin/reset_password', {
       'user_id': userId,
       'new_password': newPassword,
     });
-    await fetchUsers();
+    if (res['success'] == true) {
+      await fetchUsers();
+    }
   }
 }

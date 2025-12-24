@@ -73,6 +73,7 @@ void main() async {
     ..post('/simulate', protected.addHandler(_simulate))
     ..post('/admin/reset_password', protected.addHandler(_adminResetPassword))
     ..post('/admin/lock_user', protected.addHandler(_adminLockUser))
+    ..post('/admin/unlock_user', protected.addHandler(_adminUnlockUser))
     ..get('/admin/users', protected.addHandler(_adminUsers));
 
   final server = await serve(public, InternetAddress.anyIPv4, 8080);
@@ -271,11 +272,12 @@ Future<Response> _login(Request req) async {
 
   final user = result.first;
 
-  if (user['locked'] == 1) {
-    return Response(403,
-        body: jsonEncode({'success': false, 'error': 'User locked'}),
-        headers: {'Content-Type': 'application/json'});
-  }
+  if (user['is_admin'] == 0)
+    if (user['locked'] == 1) {
+      return Response(403,
+          body: jsonEncode({'success': false, 'error': 'User locked'}),
+          headers: {'Content-Type': 'application/json'});
+    }
 
   if (!BCrypt.checkpw(body['password'], user['password'])) {
     return Response(403,
@@ -411,6 +413,23 @@ Future<Response> _adminLockUser(Request req) async {
   );
 }
 
+Future<Response> _adminUnlockUser(Request req) async {
+  final body = jsonDecode(await req.readAsString());
+  if (req.context['admin'] != true) {
+    return Response(403,
+        body: jsonEncode({'success': false, 'error': 'Admin only'}),
+        headers: {'Content-Type': 'application/json'});
+  }
+  final userId = body['user_id'];
+  if (userId == null) {
+    return Response(400, body: jsonEncode({'success': false, 'error': 'Missing user_id'}),
+      headers: {'Content-Type': 'application/json'});
+  }
+  db.execute("UPDATE users SET locked = 0 WHERE id = ?", [userId]);
+
+  return Response.ok(jsonEncode({'success': true, 'message': 'User unlocked'}),
+      headers: {'Content-Type': 'application/json'});
+}
 
 /* ───────────────────── PENSION POTS ───────────────────── */
 

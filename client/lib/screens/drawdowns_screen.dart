@@ -10,9 +10,14 @@ class DrawdownsScreen extends StatefulWidget {
 }
 
 class _DrawdownsScreenState extends State<DrawdownsScreen> {
+  final _formKey = GlobalKey<FormState>();
   final TextEditingController amountController = TextEditingController();
-  DateTime startDate = DateTime.now();
-  DateTime endDate = DateTime.now();
+  final TextEditingController startDateController = TextEditingController();
+  final TextEditingController endDateController = TextEditingController();
+  final TextEditingController interestController = TextEditingController();
+
+  DateTime? selectedStartDate;
+  DateTime? selectedEndDate;
 
   @override
   void initState() {
@@ -20,27 +25,26 @@ class _DrawdownsScreenState extends State<DrawdownsScreen> {
     Provider.of<DataProvider>(context, listen: false).fetchDrawdowns();
   }
 
-  Future<void> _pickStartDate(BuildContext context) async {
+  Future<void> _pickDate(
+      BuildContext context, bool isStartDate) async {
     final picked = await showDatePicker(
       context: context,
-      initialDate: startDate,
+      initialDate: DateTime.now(),
       firstDate: DateTime(1900),
       lastDate: DateTime(2100),
     );
     if (picked != null) {
-      setState(() => startDate = picked);
-    }
-  }
-
-  Future<void> _pickEndDate(BuildContext context) async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: endDate,
-      firstDate: DateTime(1900),
-      lastDate: DateTime(2100),
-    );
-    if (picked != null) {
-      setState(() => endDate = picked);
+      setState(() {
+        if (isStartDate) {
+          selectedStartDate = picked;
+          startDateController.text =
+              picked.toIso8601String().split('T')[0];
+        } else {
+          selectedEndDate = picked;
+          endDateController.text =
+              picked.toIso8601String().split('T')[0];
+        }
+      });
     }
   }
 
@@ -60,46 +64,103 @@ class _DrawdownsScreenState extends State<DrawdownsScreen> {
                 final d = provider.drawdowns[i];
                 return ListTile(
                   title: Text('£${d['amount']}'),
-                  subtitle: Text('${d['start_date']} → ${d['end_date']}'),
+                  subtitle: Text(
+                      '${d['start_date']} → ${d['end_date']} at ${d['interest_rate']}'),
                   trailing: IconButton(
                     icon: const Icon(Icons.delete),
-                    onPressed: () {
-                      provider.deleteDrawdown(d['id'] as int);
-                    },
+                    onPressed: () =>
+                        provider.deleteDrawdown(d['id'] as int),
                   ),
                 );
               },
             ),
           ),
-          TextField(
-            controller: amountController,
-            decoration: const InputDecoration(labelText: 'Amount'),
-            keyboardType: TextInputType.number,
-          ),
-          const SizedBox(height: 8),
-          ElevatedButton(
-            onPressed: () => _pickStartDate(context),
-            child: const Text('Pick Start Date'),
-          ),
-          const SizedBox(height: 8),
-          ElevatedButton(
-            onPressed: () => _pickEndDate(context),
-            child: const Text('Pick End Date'),
-          ),
-          const SizedBox(height: 8),
-          ElevatedButton(
-            onPressed: () {
-              final amt = double.tryParse(amountController.text);
-              if (amt == null) return;
-              provider.addDrawdown({
-                'amount': amt,
-                'start_date': startDate.toIso8601String(),
-                'end_date': endDate.toIso8601String(),
-                'interest_rate': 0.03
-              });
-              amountController.clear();
-            },
-            child: const Text('Add Drawdown'),
+          const Divider(),
+          Form(
+            key: _formKey,
+            child: Column(
+              children: [
+                TextFormField(
+                  controller: amountController,
+                  decoration:
+                      const InputDecoration(labelText: 'Amount (£)'),
+                  keyboardType: TextInputType.number,
+                  validator: (val) =>
+                      val == null || val.isEmpty
+                          ? 'Enter amount'
+                          : null,
+                ),
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: startDateController,
+                  readOnly: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Start Date',
+                    suffixIcon: Icon(Icons.calendar_today),
+                  ),
+                  onTap: () => _pickDate(context, true),
+                  validator: (val) => val == null || val.isEmpty
+                      ? 'Select start date'
+                      : null,
+                ),
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: endDateController,
+                  readOnly: true,
+                  decoration: const InputDecoration(
+                    labelText: 'End Date',
+                    suffixIcon: Icon(Icons.calendar_today),
+                  ),
+                  onTap: () => _pickDate(context, false),
+                  validator: (val) => val == null || val.isEmpty
+                      ? 'Select end date'
+                      : null,
+                ),
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: interestController,
+                  decoration: const InputDecoration(
+                      labelText: 'Interest Rate (%)'),
+                  keyboardType: TextInputType.number,
+                  validator: (val) =>
+                      val == null || val.isEmpty
+                          ? 'Enter interest rate'
+                          : null,
+                ),
+                const SizedBox(height: 12),
+                ElevatedButton(
+                  onPressed: () {
+                    if (!_formKey.currentState!.validate()) return;
+
+                    final amount =
+                        double.tryParse(amountController.text);
+                    final rate =
+                        double.tryParse(interestController.text);
+                    if (amount == null ||
+                        rate == null ||
+                        selectedStartDate == null ||
+                        selectedEndDate == null) return;
+
+                    provider.addDrawdown({
+                      'amount': amount,
+                      'start_date':
+                          selectedStartDate!.toIso8601String(),
+                      'end_date':
+                          selectedEndDate!.toIso8601String(),
+                      'interest_rate': rate / 100,
+                    });
+
+                    amountController.clear();
+                    startDateController.clear();
+                    endDateController.clear();
+                    interestController.clear();
+                    selectedStartDate = null;
+                    selectedEndDate = null;
+                  },
+                  child: const Text('Add Drawdown'),
+                ),
+              ],
+            ),
           ),
         ],
       ),
