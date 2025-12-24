@@ -15,35 +15,6 @@ import 'package:dart_jsonwebtoken/dart_jsonwebtoken.dart';
 final db = sqlite3.open('pension.db');
 const jwtSecret = 'local-secret';
 
-// an attempt using logrequests as an example, causes an infinite loop
-// Middleware cors() =>
-//     (innerHandler) {
-//       return (request) {
-//         print('start:${request.method}');
-
-//         if (request.method == 'OPTIONS') {
-//           return Response.ok(
-//             '',
-//             headers: {
-//               'Access-Control-Allow-Origin': '*',
-//               'Access-Control-Allow-Methods': 'POST, GET, PUT, OPTIONS, DELETE',
-//               'Access-Control-Allow-Headers': 'Origin, Content-Type, Accept, Authorization',
-//               'Access-Control-Max-Age': '86400', // cache preflight for 24h
-//             },
-//           );
-//         }
-
-//         return Future.sync(() => innerHandler(request)).then((response) {
-//           print('response:${response.statusCode}');
-//           return response;
-//         }, onError: (Object error, StackTrace stackTrace) {
-//           print('error:${error} ${stackTrace}');
-
-//           throw error;
-//         });
-//       };
-//     };
-
 Response preflightHandler(Request request) {
   return Response.ok('',
     headers: {
@@ -75,66 +46,6 @@ final monitor = createMiddleware(
 void main() async {
   _initDb();
 
-// final cors = createMiddleware(
-//   requestHandler: (Request request) {
-//     print('cors:request:${request.method}');
-//     if (request.method == 'OPTIONS') {
-//       return Response.ok(null, headers: {
-//         'Access-Control-Allow-Origin': '*',
-//         'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-//         'Access-Control-Allow-Headers': 'Origin, Content-Type, Accept, Authorization',
-//       });
-//     }
-//     return null; // Continue
-//   },
-//   responseHandler: (Response response) {
-//     print('cors:response:${response.statusCode}');
-//     return response.change(headers: {
-//       'Access-Control-Allow-Origin': '*',
-//       'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-//       'Access-Control-Allow-Headers': 'Origin, Content-Type, Accept, Authorization',
-//     });
-//   },
-// );
-
-// Middleware requestcors() {
-//   return (Handler inner) {
-//     return (Request req) async {
-//       print('cors:request:${req.method}');
-//       if (req.method=='OPTIONS') {
-//         return Response.ok(null, headers: {
-//           'Access-Control-Allow-Origin': '*',
-//           'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-//           'Access-Control-Allow-Headers': 'Origin, Content-Type, Accept, Authorization',
-//         });
-//       } else
-//         return await inner(req);
-//       // final resp = await inner(req);
-//       // print('cors:response:${resp.statusCode}');
-//       // return resp.change(headers: {
-//       //   'Access-Control-Allow-Origin': '*',
-//       //   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-//       //   'Access-Control-Allow-Headers': 'Origin, Content-Type, Authorization',
-//       // });
-//     };
-//   };
-// }   
-
-// Middleware responsecors() {
-//   return (Handler inner) {
-//     return (Request req) async {
-//       print('cors:request:${req.method}');
-//       final resp = await inner(req);
-//       print('cors:response:${resp.statusCode}');
-//       return resp.change(headers: {
-//         'Access-Control-Allow-Origin': '*',
-//         'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-//         'Access-Control-Allow-Headers': 'Origin, Content-Type, Authorization',
-//       });
-//     };
-//   };
-// }   
-
   // Public routes
   final app = Router();
   final public = Pipeline()
@@ -161,7 +72,19 @@ void main() async {
     ..get('/state_pension', _getStatePension)
     ..post('/simulate', _simulate)
     ..post('/admin/reset_password', _adminResetPassword)
-    ..post('/admin/lock_user', _adminLockUser);
+    ..post('/admin/lock_user', _adminLockUser)
+    ..get('/admin/users', (Request request) {
+      final rows = db.select("SELECT id, username, is_admin, locked FROM users");
+      final data = rows.map((r) => {
+            'id': r['id'],
+            'username': r['username'],
+            'is_admin': r['is_admin'],
+            'locked': r['locked'],
+          }).toList();
+      return Response.ok(jsonEncode(data),
+          headers: {'Content-Type': 'application/json'});
+    });
+
 
   final server = await serve(public, InternetAddress.anyIPv4, 8080);
   print('Server running on IP ${server.address.address}:${server.port}');
@@ -251,38 +174,6 @@ Middleware authMiddleware() {
     };
   };
 }
-
-// Middleware cors() {
-//   return (Handler innerHandler) {
-//     return (Request request) async {
-//       print('cors:request:${request.headers}');
-//       // Handle OPTIONS request to prevent it from going further
-//       if (request.method == 'OPTIONS') {
-//         return Response.ok(
-//           '',
-//           headers: {
-//             'Access-Control-Allow-Origin': '*',
-//             'Access-Control-Allow-Methods': 'POST, GET, PUT, OPTIONS, DELETE',
-//             'Access-Control-Allow-Headers': 'Origin, Content-Type, Accept, Authorization',
-//             'Access-Control-Max-Age': '86400', // cache preflight for 24h
-//           },
-//         );
-//       }
-
-//       // Allow the request to proceed to the next handler (non-OPTIONS)
-//       final response = await innerHandler(request);
-//       print('cors:response:${response.headers}');
-
-//       // Add CORS headers to the response
-//       return response.change(headers: {
-//         ...response.headers,
-//         'Access-Control-Allow-Origin': '*',
-//         'Access-Control-Allow-Headers': 'Origin, Content-Type, Accept, Authorization',
-//         'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-//       });
-//     };
-//   };
-// }
 
 /* ───────────────────── AUTH ROUTES ───────────────────── */
 
