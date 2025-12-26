@@ -14,13 +14,18 @@ class _PensionPotsScreenState extends State<PensionPotsScreen> {
   final TextEditingController amountController = TextEditingController();
   final TextEditingController dateController = TextEditingController();
   final TextEditingController interestController = TextEditingController();
+  final TextEditingController nameController = TextEditingController();
 
   DateTime? selectedDate;
 
   @override
   void initState() {
     super.initState();
-    Provider.of<DataProvider>(context, listen: false).fetchPensionPots();
+
+    // Fetch pension pots after the widget has finished building
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Provider.of<DataProvider>(context, listen: false).fetchPensionPots();
+    });
   }
 
   Future<void> _pickDate(BuildContext context) async {
@@ -53,13 +58,26 @@ class _PensionPotsScreenState extends State<PensionPotsScreen> {
               itemBuilder: (ctx, i) {
                 final pot = provider.pensionPots[i];
                 return ListTile(
-                  title: Text('£${pot['amount']}'),
+                  title: Text(pot['name'] ?? 'No Name'), // Safely handle name null
                   subtitle: Text(
-                      'Date: ${pot['date']}  |  Rate: ${pot['interest_rate']}'),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.delete),
-                    onPressed: () =>
-                        provider.deletePensionPot(pot['id'] as int),
+                      '£${pot['amount']} | Date: ${pot['date']} | Rate: ${pot['interest_rate']}'),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Edit Button
+                      IconButton(
+                        icon: const Icon(Icons.edit),
+                        onPressed: () {
+                          _editPensionPot(pot);
+                        },
+                      ),
+                      // Delete Button
+                      IconButton(
+                        icon: const Icon(Icons.delete),
+                        onPressed: () =>
+                            provider.deletePensionPot(pot['id'] as int),
+                      ),
+                    ],
                   ),
                 );
               },
@@ -70,6 +88,13 @@ class _PensionPotsScreenState extends State<PensionPotsScreen> {
             key: _formKey,
             child: Column(
               children: [
+                TextFormField(
+                  controller: nameController,
+                  decoration: const InputDecoration(labelText: 'Name'),
+                  validator: (val) =>
+                      val == null || val.isEmpty ? 'Enter a name' : null,
+                ),
+                const SizedBox(height: 8),
                 TextFormField(
                   controller: amountController,
                   decoration:
@@ -110,6 +135,7 @@ class _PensionPotsScreenState extends State<PensionPotsScreen> {
                       return;
                     }
                     provider.addPensionPot({
+                      'name': nameController.text, // Include name
                       'amount': amount,
                       'date': selectedDate!.toIso8601String(),
                       'interest_rate': rate / 100,
@@ -117,12 +143,78 @@ class _PensionPotsScreenState extends State<PensionPotsScreen> {
                     amountController.clear();
                     dateController.clear();
                     interestController.clear();
+                    nameController.clear();
                     selectedDate = null;
                   },
                   child: const Text('Add Pension Pot'),
                 ),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _editPensionPot(Map<String, dynamic> pot) {
+    // Populate form with current data
+    nameController.text = pot['name'] ?? '';
+    amountController.text = pot['amount'].toString();
+    dateController.text = pot['date'];
+    interestController.text = (pot['interest_rate'] * 100).toString();
+
+    // Show a dialog or navigate to an edit screen
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Edit Pension Pot'),
+        content: Form(
+          child: Column(
+            children: [
+              TextFormField(
+                controller: nameController,
+                decoration: const InputDecoration(labelText: 'Name'),
+              ),
+              TextFormField(
+                controller: amountController,
+                decoration:
+                    const InputDecoration(labelText: 'Amount (£)'),
+              ),
+              TextFormField(
+                controller: dateController,
+                decoration: const InputDecoration(labelText: 'Date'),
+              ),
+              TextFormField(
+                controller: interestController,
+                decoration:
+                    const InputDecoration(labelText: 'Interest Rate'),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+            },
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              final updatedPot = {
+                'name': nameController.text,
+                'amount': double.tryParse(amountController.text),
+                'date': dateController.text,
+                'interest_rate': double.tryParse(interestController.text) ?? 0.0,
+              };
+
+              // Call the update API
+              Provider.of<DataProvider>(context, listen: false).updatePensionPot(
+                  pot['id'], updatedPot); // Pass ID and updated pot data
+
+              Navigator.of(ctx).pop();
+            },
+            child: const Text('Save'),
           ),
         ],
       ),

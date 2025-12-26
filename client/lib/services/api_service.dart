@@ -30,6 +30,21 @@ class ApiService {
     return _parseJsonResponse(res);
   }
 
+  /// PUT with JSON body (update action)
+  static Future<Map<String, dynamic>> put(
+      String endpoint, Map<String, dynamic> body) async {
+    final res = await http.put(
+      Uri.parse('$apiBase/$endpoint'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode(body),
+    );
+
+    return _parseJsonResponse(res);
+  }
+  
   /// GET list of objects from endpoint
   static Future<List<dynamic>> getList(String endpoint) async {
     final res = await http.get(

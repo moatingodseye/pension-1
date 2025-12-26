@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 
 class DataProvider extends ChangeNotifier {
+  bool isLoading = false; // Flag for loading state
   List<dynamic> pensionPots = [];
   List<dynamic> drawdowns = [];
   Map<String, dynamic> statePension = {};
@@ -11,7 +12,12 @@ class DataProvider extends ChangeNotifier {
   // ───────── Pension Pots ─────────
 
   Future<void> fetchPensionPots() async {
+    isLoading = true; // Start loading
+    notifyListeners();
+    
     pensionPots = await ApiService.getList('pension_pots');
+    
+    isLoading = false; // Finished loading
     notifyListeners();
   }
 
@@ -22,6 +28,12 @@ class DataProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> updatePensionPot(int id, Map<String, dynamic> updatedPot) async {
+    final res = await ApiService.put('pension_pots/$id', updatedPot);
+    if (res['success'] == true) {
+      await fetchPensionPots();
+    }
+  }
   Future<void> deletePensionPot(int id) async {
     final res = await ApiService.delete('pension_pots/$id');
     if (res['success'] == true) {
