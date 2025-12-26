@@ -291,7 +291,11 @@ Future<Response> _login(Request req) async {
   });
 
   return Response.ok(
-    jsonEncode({'success': true, 'token': jwt.sign(SecretKey(jwtSecret))}),
+    jsonEncode({
+      'success': true,
+      'token': jwt.sign(SecretKey(jwtSecret)),
+      'isAdmin': user['is_admin'] == 1, // <-- add this
+    }),
     headers: {'Content-Type': 'application/json'},
   );
 }

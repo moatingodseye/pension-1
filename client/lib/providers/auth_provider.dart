@@ -4,6 +4,7 @@ import '../services/api_service.dart';
 
 class AuthProvider extends ChangeNotifier {
   bool loggedIn = false;
+  bool isAdmin = false;
 
   Future<void> login(String username, String password) async {
     final res = await ApiService.post('login', {
@@ -12,9 +13,12 @@ class AuthProvider extends ChangeNotifier {
     });
     if (res['token'] != null) {
       final prefs = await SharedPreferences.getInstance();
-      prefs.setString('token', res['token']);
-      await ApiService.initToken();
-      loggedIn = true;
+      await prefs.setString('token', res['token']); // ✅ changed: await added
+      await ApiService.initToken(); // ✅ changed: await added
+
+      loggedIn = true; // ✅ changed: set before notifyListeners
+      isAdmin = res['isAdmin'] == true; // ✅ changed: set before notifyListeners
+
       notifyListeners();
     }
   }
@@ -22,11 +26,10 @@ class AuthProvider extends ChangeNotifier {
   Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('token');
-
-    ApiService.clearToken(); // 👈 add this
+    await ApiService.clearToken();
 
     loggedIn = false;
+    isAdmin = false;
     notifyListeners();
   }
 }
-

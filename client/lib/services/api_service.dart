@@ -11,7 +11,7 @@ class ApiService {
     token = prefs.getString('token') ?? "";
   }
 
-  static void clearToken() {
+  static Future<void> clearToken() async {
     token = null;
   }
 

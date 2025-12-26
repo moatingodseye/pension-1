@@ -14,52 +14,41 @@ class Sidebar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
+
+    final destinations = <NavigationRailDestination>[
+      const NavigationRailDestination(icon: Icon(Icons.dashboard), label: Text('Dashboard')),
+      const NavigationRailDestination(icon: Icon(Icons.account_balance), label: Text('Pots')),
+      const NavigationRailDestination(icon: Icon(Icons.trending_down), label: Text('Drawdowns')),
+      const NavigationRailDestination(icon: Icon(Icons.access_time), label: Text('State')),
+      const NavigationRailDestination(icon: Icon(Icons.bar_chart), label: Text('Sim')),
+      // Admin button always visible
+      NavigationRailDestination(
+        icon: Icon(Icons.admin_panel_settings,
+            color: auth.isAdmin ? null : Colors.grey),
+        label: Text(
+          'Admin',
+          style: TextStyle(color: auth.isAdmin ? null : Colors.grey),
+        ),
+      ),
+      // Logout
+      const NavigationRailDestination(icon: Icon(Icons.logout), label: Text('Logout')),
+    ];
+
     return NavigationRail(
       selectedIndex: selectedIndex,
-      onDestinationSelected: (int index) {
+      onDestinationSelected: (index) {
+        // Disable admin click for non-admin
+        if (index == 5 && !auth.isAdmin) return;
+        // Logout
+        if (index == 6) {
+          auth.logout();
+          return;
+        }
         onItemSelected(index);
       },
       labelType: NavigationRailLabelType.all,
-      destinations: const [
-        NavigationRailDestination(
-          icon: Icon(Icons.dashboard),
-          label: Text('Dashboard'),
-        ),
-        NavigationRailDestination(
-          icon: Icon(Icons.account_balance),
-          label: Text('Pots'),
-        ),
-        NavigationRailDestination(
-          icon: Icon(Icons.trending_down),
-          label: Text('Drawdowns'),
-        ),
-        NavigationRailDestination(
-          icon: Icon(Icons.access_time),
-          label: Text('State'),
-        ),
-        NavigationRailDestination(
-          icon: Icon(Icons.bar_chart),
-          label: Text('Sim'),
-        ),
-        NavigationRailDestination(
-          icon: Icon(Icons.admin_panel_settings),
-          label: Text('Admin'),
-        ),
-      ],
-
-      
-      // 👇 LOGOUT BUTTON
-      trailing: Padding(
-        padding: const EdgeInsets.only(bottom: 16),
-        child: IconButton(
-          tooltip: 'Logout',
-          icon: const Icon(Icons.logout),
-          onPressed: () {
-            context.read<AuthProvider>().logout();
-          },
-        ),
-      ),
-
+      destinations: destinations,
     );
   }
 }
