@@ -46,39 +46,54 @@ final monitor = createMiddleware(
 void main() async {
   _initDb();
 
-  // Public routes
-  final app = Router();
-  final public = Pipeline()
-    .addMiddleware(logRequests())
-    .addMiddleware(monitor)
-    .addMiddleware(corsHeaders())
-    .addHandler(app);
-  final protected = Pipeline()
-    .addMiddleware(logRequests())
-    .addMiddleware(monitor)
-    .addMiddleware(corsHeaders())
-    .addMiddleware(authMiddleware());
-  
-  app
-    ..post('/register', _register)
-    ..post('/login', _login)
-    ..post('/pension_pots',   protected.addHandler(_createPensionPot))
-    ..get('/pension_pots', protected.addHandler(_listPensionPots))
-//    ..delete('/pension_pots/<id>', protected.addHandler(_deletePensionPot))
-    ..post('/drawdowns', protected.addHandler(_createDrawdown))
-    ..get('/drawdowns', protected.addHandler(_listDrawdowns))
-//    ..delete('/drawdowns/<id>', protected.addHandler(_deleteDrawdown))
-    ..post('/state_pension', protected.addHandler(_setStatePension))
-    ..get('/state_pension', protected.addHandler(_getStatePension))
-    ..post('/simulate', protected.addHandler(_simulate))
-    ..post('/admin/reset_password', protected.addHandler(_adminResetPassword))
-    ..post('/admin/lock_user', protected.addHandler(_adminLockUser))
-    ..post('/admin/unlock_user', protected.addHandler(_adminUnlockUser))
-    ..get('/admin/users', protected.addHandler(_adminUsers));
+  final pub = Router();
+  final prot = Router();
 
-  final server = await serve(public, InternetAddress.anyIPv4, 8080);
+  // Public pipeline (no auth)
+  final public = Pipeline()
+      .addMiddleware(logRequests())
+      .addMiddleware(monitor)
+      .addMiddleware(corsHeaders())
+      .addHandler(pub);
+
+  // Protected pipeline (with auth)
+  final protected = Pipeline()
+      .addMiddleware(logRequests())
+      .addMiddleware(monitor)
+      .addMiddleware(corsHeaders())
+      .addMiddleware(authMiddleware())
+      .addHandler(prot);
+
+  final cas = Cascade()
+      .add(public)
+      .add(protected)
+      .handler;
+
+  // --- Public routes ---
+  pub
+    ..post('/register', _register)
+    ..post('/login', _login);
+
+  // --- Protected routes ---
+  prot
+    ..post('/pension_pots', _createPensionPot)
+    ..get('/pension_pots', _listPensionPots)
+    ..delete('/pension_pots/<id>', _deletePensionPot)
+    ..post('/drawdowns', _createDrawdown)
+    ..get('/drawdowns', _listDrawdowns)
+    ..delete('/drawdowns/<id>', _deleteDrawdown)
+    ..post('/state_pension', _setStatePension)
+    ..get('/state_pension', _getStatePension)
+    ..post('/simulate', _simulate)
+    ..post('/admin/reset_password', _adminResetPassword)
+    ..post('/admin/lock_user', _adminLockUser)
+    ..post('/admin/unlock_user', _adminUnlockUser)
+    ..get('/admin/users', _adminUsers);
+
+  final server = await serve(cas, InternetAddress.anyIPv4, 8080);
   print('Server running on IP ${server.address.address}:${server.port}');
 }
+
 
 /* ───────────────────────── DATABASE ───────────────────────── */
 
