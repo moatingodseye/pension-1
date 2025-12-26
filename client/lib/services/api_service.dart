@@ -4,11 +4,15 @@ import '../core/constants.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
-  static String token = "";
+  static String? token = "";
 
   static Future<void> initToken() async {
     final prefs = await SharedPreferences.getInstance();
     token = prefs.getString('token') ?? "";
+  }
+
+  static void clearToken() {
+    token = null;
   }
 
   /// POST with JSON body (create / update actions)

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../providers/auth_provider.dart';
 
 class Sidebar extends StatelessWidget {
   final int selectedIndex;
@@ -44,6 +46,20 @@ class Sidebar extends StatelessWidget {
           label: Text('Admin'),
         ),
       ],
+
+      
+      // 👇 LOGOUT BUTTON
+      trailing: Padding(
+        padding: const EdgeInsets.only(bottom: 16),
+        child: IconButton(
+          tooltip: 'Logout',
+          icon: const Icon(Icons.logout),
+          onPressed: () {
+            context.read<AuthProvider>().logout();
+          },
+        ),
+      ),
+
     );
   }
 }
