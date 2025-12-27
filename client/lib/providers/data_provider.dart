@@ -34,6 +34,7 @@ class DataProvider extends ChangeNotifier {
       await fetchPensionPots();
     }
   }
+
   Future<void> deletePensionPot(int id) async {
     final res = await ApiService.delete('pension_pots/$id');
     if (res['success'] == true) {
@@ -50,6 +51,13 @@ class DataProvider extends ChangeNotifier {
 
   Future<void> addDrawdown(Map<String, dynamic> drawdown) async {
     final res = await ApiService.post('drawdowns', drawdown);
+    if (res['success'] == true) {
+      await fetchDrawdowns();
+    }
+  }
+
+  Future<void> updateDrawdown(int id, Map<String, dynamic> update) async {
+    final res = await ApiService.put('drawdowns/$id', update);
     if (res['success'] == true) {
       await fetchDrawdowns();
     }

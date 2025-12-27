@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:full_pension_server/monitor.dart';
 import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart';
 import 'package:shelf_router/shelf_router.dart';
@@ -9,6 +10,7 @@ import 'user.dart';
 import 'pension.dart';
 import 'drawdown.dart';
 import 'state_pension.dart';
+import 'simulate.dart';
 
 void main() async {
   // Initialize the database and run migrations
@@ -21,6 +23,7 @@ void main() async {
   final public = Pipeline()
       .addMiddleware(logRequests())
       .addMiddleware(corsHeaders())
+      .addMiddleware(monitor1)
       .addHandler(pub);
 
   // Protected pipeline (with auth)
@@ -28,6 +31,7 @@ void main() async {
       .addMiddleware(logRequests())
       .addMiddleware(corsHeaders())
       .addMiddleware(authMiddleware())
+      .addMiddleware(monitor2)
       .addHandler(prot);
 
   final cas = Cascade().add(public).add(protected).handler;
@@ -46,9 +50,13 @@ void main() async {
 
     ..post('/drawdowns', createDrawdown)
     ..get('/drawdowns', listDrawdowns)
+    ..delete('/drawdowns/>id>', deleteDrawdown)
+    ..put('/drawdowns/<id>', updateDrawdown)
 
     ..post('/state_pension', createStatePension)
     ..get('/state_pension', listStatePensions)
+
+    ..post('/simulate', simulate)
 
     ..get('/users', getUsers)
     ..post('/lock_user', lockUser)

@@ -3,9 +3,7 @@ import 'package:bcrypt/bcrypt.dart';
 
 final db = sqlite3.open('pension.db');
 
-void initDb() {
-  _addPensionPotNameColumn();
-  
+void initDb() {  
   db.execute('''
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -49,6 +47,9 @@ void initDb() {
     )
   ''');
 
+  _addPensionPotNameColumn();
+  _addPensionPotToDrawdowns();
+
   final admin = db.select("SELECT * FROM users WHERE username='admin'");
   if (admin.isEmpty) {
     final hash = BCrypt.hashpw('admin', BCrypt.gensalt());
@@ -73,3 +74,18 @@ void _addPensionPotNameColumn() {
     print("Migration failed: $e");
   }
 }
+
+void _addPensionPotToDrawdowns() {
+  try {
+    final result = db.select("PRAGMA table_info(drawdowns);");
+    final columns = result.map((row) => row['name'] as String).toList();
+
+    if (!columns.contains('pension_pot_id')) {
+      db.execute("ALTER TABLE drawdowns ADD COLUMN pension_pot_id INTEGER;");
+      print("Column 'pension_pot_id' added to drawdowns table.");
+    }
+  } catch (e) {
+    print("Migration failed: $e");
+  }
+}
+
